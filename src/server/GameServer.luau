@@ -1,13 +1,15 @@
--- Brainrot Lane: the whole server side lives in this one module.
--- A brainrot walks down the lane, a player clicks it to buy it, it
--- earns cash every second from its slot on the player's base, and a
--- thief walks in on a timer to steal one unless players bonk him away.
+-- Brainrot Lane: the server side, all in this one module.
+-- Brainrots stroll down the lane, a player buys one with E (or a
+-- click), it parks on their base and pays cash every second, and a
+-- thief drops in on a timer to steal one unless players bonk him.
 --
--- It is simple on purpose. Every part is a ball or an axis-aligned
--- block, nothing ever rotates, and every move is a plain position
--- change. That is what keeps this game from breaking the way the
--- last one did, when cylinder bodies were built upright and then
--- every move reset their rotation.
+-- Deliberately plain: every body is a ball or an axis-aligned
+-- block, nothing ever turns, and every move is only a position
+-- change. The spawn is bulletproof by design: the SpawnLocation
+-- sits in the place file itself, the engine loads the character on
+-- its own (CharacterAutoLoads), and the server teleports every
+-- character to the lane the moment it appears, so nobody can end
+-- up stranded on the bare baseplate far from the game.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,11 +18,12 @@ local Workspace = game:GetService("Workspace")
 
 local GameServer = {}
 
--- Tuning ----------------------------------------------------------------
+-- Tuning ------------------------------------------------------------------
 
 local LANE_Z = -20
 local LANE_X_MIN = -70
 local LANE_X_MAX = 75
+local SPAWN_POS = Vector3.new(0, 3, -6)
 local WALK_SPEED = 6
 local THIEF_SPEED = 8
 local START_CASH = 100
@@ -34,7 +37,7 @@ local BOOST_STEP = 0.25
 local BOOST_MAX = 4
 local BASE_X = { -60, -20, 20, 60 }
 
--- The cast: balls and blocks only, no cylinders, no rotation. -----------
+-- The cast: balls and blocks only, no cylinders, no turning. --------------
 local CAST = {
 	{ name = "Noodle Ned", shape = Enum.PartType.Ball, size = 4, color = Color3.fromRGB(255, 220, 80), income = 5, rarity = "Common", price = 50 },
 	{ name = "Captain Pickle", shape = Enum.PartType.Block, size = 4, color = Color3.fromRGB(80, 200, 90), income = 12, rarity = "Common", price = 120 },
@@ -44,9 +47,10 @@ local CAST = {
 	{ name = "Quantum Toaster 3000", shape = Enum.PartType.Block, size = 5, color = Color3.fromRGB(200, 200, 210), income = 400, rarity = "Mythic", price = 4000 },
 }
 
-local THIEF_DEF = { name = "Sneaky Snatcher", shape = Enum.PartType.Ball, size = 5, color = Color3.fromRGB(120, 20, 20), income = 0, rarity = "THIEF", price = 0, tag = "Click 3x to bonk!" }
+local THIEF_DEF = { name = "Sneaky Snatcher", shape = Enum.PartType.Ball, size = 5, color = Color3.fromRGB(120, 20, 20), income = 0, rarity = "THIEF", price = 0, tag = "Bonk me 3x!" }
 
--- State -------------------------------------------------------------------
+-- State ---------------------------------------------------------------------
+
 local state = {
 	walkers = {},
 	players = {},
@@ -55,10 +59,15 @@ local state = {
 	raidTimer = RAID_FIRST,
 	spawnTimer = 0,
 	incomeTimer = 0,
+	statusTimer = 0,
 	time = 0,
 }
 
--- Remotes -------------------------------------------------------------------
+-- The sign's live status line, filled in by buildWorld. ----------------------
+local signStatus = nil
+
+-- Remotes ---------------------------------------------------------------------
+
 local function makeRemote(name)
 	local remote = Instance.new("RemoteEvent")
 	remote.Name = name
@@ -70,9 +79,11 @@ local Remotes = {
 	HudUpdate = makeRemote("HudUpdate"),
 	RaidWarning = makeRemote("RaidWarning"),
 	UpgradeRequest = makeRemote("UpgradeRequest"),
+	TeleportRequest = makeRemote("TeleportRequest"),
 }
 
--- Small builders ------------------------------------------------------------
+-- Small builders --------------------------------------------------------------
+
 local function makePart(name, size, position, color, material, shape)
 	local part = Instance.new("Part")
 	part.Name = name
@@ -87,12 +98,21 @@ local function makePart(name, size, position, color, material, shape)
 	return part
 end
 
-local function makeTag(parent, line1, line2)
+-- Name tags that are honest about distance: the tag hangs from an
+-- attachment over the body and its size is in studs, so it shrinks
+-- as the player walks away instead of looking the same from anywhere.
+local function makeTag(body, line1, line2)
+	local anchor = Instance.new("Attachment")
+	anchor.Name = "TagAnchor"
+	anchor.Position = Vector3.new(0, body.Size.Y / 2 + 1.2, 0)
+	anchor.Parent = body
+
 	local tag = Instance.new("BillboardGui")
 	tag.Name = "NameTag"
-	tag.Size = UDim2.fromOffset(160, 48)
+	tag.Adornee = anchor
+	tag.Size = UDim2.fromScale(8, 2.5)
+	tag.MaxDistance = 150
 	tag.AlwaysOnTop = false
-	tag.ExtentsOffsetWorldSpace = Vector3.new(0, 3.5, 0)
 	local label = Instance.new("TextLabel")
 	label.Name = "TagText"
 	label.Size = UDim2.fromScale(1, 1)
@@ -103,15 +123,16 @@ local function makeTag(parent, line1, line2)
 	label.Font = Enum.Font.SourceSansBold
 	label.TextSize = 14
 	label.Parent = tag
-	tag.Parent = parent
+	tag.Parent = body
 	return tag
 end
 
--- Brainrot bodies: a body part, two eyes on the +X face (the way it
--- walks), a small name tag and a big invisible hitbox. Everything is
--- positioned with plain offsets, so moving the model is only ever a
+-- A brainrot: body, two eyes on the +X face (the way it walks), a
+-- small tag, a big invisible hitbox, and two ways to buy it — hold E
+-- on the ProximityPrompt (the main way) or click it (the backup).
+-- All parts sit at plain offsets, so moving the model is only ever a
 -- position change and the eyes can never end up underneath it.
-local function buildBrainrot(def, position)
+local function buildBrainrot(def, position, actionText)
 	local model = Instance.new("Model")
 	model.Name = def.name
 
@@ -170,26 +191,27 @@ local function buildBrainrot(def, position)
 	click.MaxActivationDistance = 200
 	click.Parent = hit
 
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = actionText
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = 0.25
+	prompt.MaxActivationDistance = 12
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = hit
+
 	model.Parent = Workspace
-	return model, click
+	return model, click, prompt
 end
 
--- World ---------------------------------------------------------------------
+-- World -----------------------------------------------------------------------
+-- The SpawnLocation is NOT built here: it lives in
+-- default.project.json, so it exists in the place before any script
+-- runs and can never fail to appear because a script errored.
 local function buildWorld()
 	makePart("PlazaFloor", Vector3.new(180, 1, 120), Vector3.new(0, 0.5, 10), Color3.fromRGB(90, 180, 90), Enum.Material.Grass)
 	makePart("ConveyorLane", Vector3.new(150, 1, 8), Vector3.new(0, 1, LANE_Z), Color3.fromRGB(50, 50, 70), Enum.Material.Metal)
 	makePart("RailNorth", Vector3.new(150, 0.5, 1), Vector3.new(0, 1.5, -24), Color3.fromRGB(255, 220, 0), Enum.Material.Neon)
 	makePart("RailSouth", Vector3.new(150, 0.5, 1), Vector3.new(0, 1.5, -16), Color3.fromRGB(255, 220, 0), Enum.Material.Neon)
-
-	local spawn = Instance.new("SpawnLocation")
-	spawn.Name = "SpawnLocation"
-	spawn.Size = Vector3.new(10, 1, 10)
-	spawn.Position = Vector3.new(0, 3, -6)
-	spawn.Color = Color3.fromRGB(120, 200, 255)
-	spawn.Material = Enum.Material.Neon
-	spawn.Anchored = true
-	spawn.Neutral = true
-	spawn.Parent = Workspace
 
 	for _, bx in ipairs(BASE_X) do
 		makePart("Base", Vector3.new(24, 1, 20), Vector3.new(bx, 0.5, 32), Color3.fromRGB(180, 180, 190), Enum.Material.SmoothPlastic)
@@ -227,17 +249,30 @@ local function buildWorld()
 	gui.Face = Enum.NormalId.Front
 	local title = Instance.new("TextLabel")
 	title.Name = "SignText"
-	title.Size = UDim2.fromScale(1, 1)
+	title.Size = UDim2.new(1, 0, 0.6, 0)
+	title.Position = UDim2.new(0, 0, 0, 0)
 	title.BackgroundTransparency = 1
 	title.Text = "BRAINROT LANE"
 	title.TextColor3 = Color3.fromRGB(255, 220, 0)
 	title.Font = Enum.Font.SourceSansBold
 	title.TextSize = 48
 	title.Parent = gui
+	local status = Instance.new("TextLabel")
+	status.Name = "SignStatus"
+	status.Size = UDim2.new(1, 0, 0.4, 0)
+	status.Position = UDim2.new(0, 0, 0.6, 0)
+	status.BackgroundTransparency = 1
+	status.Text = "SERVER STARTING..."
+	status.TextColor3 = Color3.fromRGB(120, 255, 120)
+	status.Font = Enum.Font.SourceSansBold
+	status.TextSize = 20
+	status.Parent = gui
 	gui.Parent = sign
+	signStatus = status
 end
 
--- Players, cash and the HUD ---------------------------------------------------
+-- Players, cash and the HUD -----------------------------------------------------
+
 local function syncCash(player)
 	local data = state.players[player]
 	if data and data.cashValue then
@@ -279,6 +314,22 @@ local function claimBase()
 	return best
 end
 
+-- Put a player's character right beside the lane, facing it. The
+-- default CFrame faces -Z, and the lane sits at -Z from the spawn,
+-- so no rotation is needed at all.
+local function teleportToLane(player)
+	local character = player.Character
+	if not character then
+		return false
+	end
+	character:PivotTo(CFrame.new(SPAWN_POS))
+	return true
+end
+
+local function onCharacterAdded(player, _character)
+	teleportToLane(player)
+end
+
 local function onPlayerAdded(player)
 	local data = { cash = START_CASH, boost = 0, base = claimBase(), owned = {} }
 	state.players[player] = data
@@ -292,11 +343,24 @@ local function onPlayerAdded(player)
 	cashValue.Parent = leaderstats
 	data.cashValue = cashValue
 
-	player:LoadCharacter()
+	player.CharacterAdded:Connect(function(character)
+		onCharacterAdded(player, character)
+	end)
+	if player.Character then
+		teleportToLane(player)
+	end
+	print("Brainrot Lane: " .. player.Name .. " joined with $" .. START_CASH)
 	sendHud(player)
 end
 
--- Buying ----------------------------------------------------------------------
+local function onTeleportRequest(player)
+	if teleportToLane(player) then
+		print("Brainrot Lane: teleported " .. player.Name .. " to the lane")
+	end
+end
+
+-- Buying ------------------------------------------------------------------------
+
 local function nextFreeSlot(data)
 	if not data.base then
 		return nil
@@ -332,6 +396,9 @@ function GameServer.buyBrainrot(player, walker)
 	if walker.click then
 		walker.click.MaxActivationDistance = 0
 	end
+	if walker.prompt then
+		walker.prompt.Enabled = false
+	end
 	local pos = Vector3.new(slot.x, 1 + walker.def.size / 2, slot.z)
 	walker.model:PivotTo(CFrame.new(pos))
 	walker.slot = slot
@@ -342,20 +409,26 @@ function GameServer.buyBrainrot(player, walker)
 	return true
 end
 
--- Walking brainrots -------------------------------------------------------------
+-- Walking brainrots ---------------------------------------------------------------
+
 local function spawnWalker()
 	local def = CAST[math.random(1, #CAST)]
 	local y = 1.5 + def.size / 2
-	local model, click = buildBrainrot(def, Vector3.new(LANE_X_MIN, y, LANE_Z))
-	local walker = { def = def, model = model, click = click, x = LANE_X_MIN, y = y, phase = math.random() * math.pi * 2, owned = false }
+	local model, click, prompt = buildBrainrot(def, Vector3.new(LANE_X_MIN, y, LANE_Z), "Buy $" .. def.price)
+	local walker = { def = def, model = model, click = click, prompt = prompt, x = LANE_X_MIN, y = y, phase = math.random() * math.pi * 2, owned = false }
 	click.MouseClick:Connect(function(player)
 		GameServer.buyBrainrot(player, walker)
 	end)
+	prompt.Triggered:Connect(function(player)
+		GameServer.buyBrainrot(player, walker)
+	end)
 	table.insert(state.walkers, walker)
+	print("Brainrot Lane: " .. def.name .. " joined the lane (" .. #state.walkers .. " walking)")
 	return walker
 end
 
--- The thief ---------------------------------------------------------------------
+-- The thief -----------------------------------------------------------------------
+
 local endRaid
 local stealMostValuable
 
@@ -364,12 +437,16 @@ local function startRaid()
 		return
 	end
 	local y = 1.5 + THIEF_DEF.size / 2
-	local model, click = buildBrainrot(THIEF_DEF, Vector3.new(LANE_X_MAX, y, LANE_Z))
-	state.thief = { model = model, click = click, x = LANE_X_MAX, y = y, hits = 0 }
+	local model, click, prompt = buildBrainrot(THIEF_DEF, Vector3.new(LANE_X_MAX, y, LANE_Z), "Bonk!")
+	state.thief = { model = model, click = click, prompt = prompt, x = LANE_X_MAX, y = y, hits = 0 }
 	click.MouseClick:Connect(function(player)
 		GameServer.bonkThief(player)
 	end)
-	Remotes.RaidWarning:FireAllClients("SNEAKY SNATCHER IS COMING! Click him 3 times to bonk him!")
+	prompt.Triggered:Connect(function(player)
+		GameServer.bonkThief(player)
+	end)
+	Remotes.RaidWarning:FireAllClients("SNEAKY SNATCHER IS COMING! Hold E on him 3 times to bonk him!")
+	print("Brainrot Lane: raid started, the Snatcher is on the lane")
 end
 
 function GameServer.bonkThief(player)
@@ -424,7 +501,8 @@ endRaid = function(message)
 	Remotes.RaidWarning:FireAllClients(message)
 end
 
--- The one upgrade ----------------------------------------------------------------
+-- The one upgrade ------------------------------------------------------------------
+
 local function onUpgradeRequest(player)
 	local data = state.players[player]
 	if not data or data.boost >= BOOST_MAX or data.cash < BOOST_COST then
@@ -437,7 +515,7 @@ local function onUpgradeRequest(player)
 end
 
 -- The tick: one Heartbeat drives everything, so there are no threads
--- to stall and no timing to get out of step. --------------------------------------
+-- to stall and no timing to get out of step. ----------------------------------------
 local function onHeartbeat(dt)
 	state.time += dt
 
@@ -488,17 +566,28 @@ local function onHeartbeat(dt)
 			end
 		end
 	end
+
+	state.statusTimer += dt
+	if state.statusTimer >= 1 and signStatus then
+		state.statusTimer = 0
+		signStatus.Text = "SERVER ALIVE  •  " .. #state.walkers .. " walkers  •  " .. math.floor(state.time) .. "s"
+	end
 end
 
--- Boot --------------------------------------------------------------------------------
+-- Boot ----------------------------------------------------------------------------------
 function GameServer.start()
+	print("Brainrot Lane: server starting")
 	buildWorld()
+	print("Brainrot Lane: world built — plaza, lane, 2 rails, 4 bases, 24 pads, sign")
+	print("Brainrot Lane: spawn is static in the place file at (0, 3, -6), CharacterAutoLoads on")
 	Remotes.UpgradeRequest.OnServerEvent:Connect(onUpgradeRequest)
+	Remotes.TeleportRequest.OnServerEvent:Connect(onTeleportRequest)
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	for _, player in ipairs(Players:GetPlayers()) do
 		onPlayerAdded(player)
 	end
 	RunService.Heartbeat:Connect(onHeartbeat)
+	print("Brainrot Lane: live — walkers spawning, buy with E")
 end
 
 -- Called by TOUR.json so reviewers can jump straight to a raid.
@@ -512,6 +601,7 @@ GameServer._debug = {
 	spawnWalker = spawnWalker,
 	onHeartbeat = onHeartbeat,
 	onPlayerAdded = onPlayerAdded,
+	teleportToLane = teleportToLane,
 }
 
 return GameServer

@@ -1,1 +1,1 @@
-{"steps":[{"screenshot":"1-start.png","wait_ms":1000},{"screenshot":"2-play.png","wait_ms":3000},{"call":{"arg":"now","fn":"startRaidNow","module":"ServerScriptService.Server.GameServer","on":"Server"},"screenshot":"3-raid.png","wait_ms":3000}],"tour":1}
+{"steps":[{"screenshot":"1-start.png","wait_ms":1200},{"screenshot":"2-play.png","wait_ms":2500},{"call":{"arg":"now","fn":"startRaidNow","module":"ServerScriptService.Server.GameServer","on":"Server"},"screenshot":"3-raid.png","wait_ms":3000}],"tour":1}
