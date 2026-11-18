@@ -1,7 +1,8 @@
--- Game.client: the whole interface of Brainrot Bazaar.
--- A start screen, the cash and income display, the upgrade and rebirth
--- buttons, and the raid warning banner. It only shows what the server
--- sends it; every number it shows comes from the server's HudUpdate.
+-- Brainrot Lane, client side: the start screen, the cash and income
+-- display, the one upgrade button, and the raid warning banner. It
+-- only shows what the server sends it; every number on screen comes
+-- from the server's HudUpdate, and the upgrade button only asks the
+-- server through UpgradeRequest.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11,207 +12,140 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 local hudUpdate = ReplicatedStorage:WaitForChild("HudUpdate")
 local raidWarning = ReplicatedStorage:WaitForChild("RaidWarning")
-local rebirthRequest = ReplicatedStorage:WaitForChild("RebirthRequest")
 local upgradeRequest = ReplicatedStorage:WaitForChild("UpgradeRequest")
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "BrainrotGui"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.Parent = playerGui
+local screen = Instance.new("ScreenGui")
+screen.Name = "BrainrotLaneGui"
+screen.ResetOnSpawn = false
+screen.Parent = playerGui
 
--- The start screen: title, how to play, one big PLAY button.
-local startScreen = Instance.new("Frame")
-startScreen.Name = "StartScreen"
-startScreen.Size = UDim2.fromScale(1, 1)
-startScreen.BackgroundColor3 = Color3.fromRGB(25, 25, 45)
-startScreen.BorderSizePixel = 0
-startScreen.Parent = gui
+-- Start screen, shown until PLAY is pressed.
+local startFrame = Instance.new("Frame")
+startFrame.Name = "StartScreen"
+startFrame.Size = UDim2.fromScale(1, 1)
+startFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 40)
+startFrame.BackgroundTransparency = 0.25
+startFrame.Parent = screen
 
 local title = Instance.new("TextLabel")
 title.Name = "Title"
-title.AnchorPoint = Vector2.new(0.5, 0)
-title.Position = UDim2.new(0.5, 0, 0.12, 0)
-title.Size = UDim2.new(0.9, 0, 0.14, 0)
+title.Size = UDim2.new(0.8, 0, 0.2, 0)
+title.Position = UDim2.new(0.1, 0, 0.25, 0)
 title.BackgroundTransparency = 1
-title.Text = "BRAINROT BAZAAR"
-title.TextColor3 = Color3.fromRGB(255, 220, 60)
-title.TextScaled = true
-title.Font = Enum.Font.GothamBlack
-title.Parent = startScreen
+title.Text = "BRAINROT LANE"
+title.TextColor3 = Color3.fromRGB(255, 220, 0)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 64
+title.Parent = startFrame
 
 local subtitle = Instance.new("TextLabel")
 subtitle.Name = "Subtitle"
-subtitle.AnchorPoint = Vector2.new(0.5, 0)
-subtitle.Position = UDim2.new(0.5, 0, 0.27, 0)
-subtitle.Size = UDim2.new(0.9, 0, 0.06, 0)
+subtitle.Size = UDim2.new(0.8, 0, 0.15, 0)
+subtitle.Position = UDim2.new(0.1, 0, 0.45, 0)
 subtitle.BackgroundTransparency = 1
-subtitle.Text = "Collect absurd brainrots. Earn money every second. Beware the Snatcher!"
-subtitle.TextColor3 = Color3.fromRGB(230, 230, 255)
-subtitle.TextScaled = true
-subtitle.Font = Enum.Font.GothamBold
-subtitle.Parent = startScreen
-
-local howTo = Instance.new("TextLabel")
-howTo.Name = "HowTo"
-howTo.AnchorPoint = Vector2.new(0.5, 0)
-howTo.Position = UDim2.new(0.5, 0, 0.36, 0)
-howTo.Size = UDim2.new(0.8, 0, 0.3, 0)
-howTo.BackgroundTransparency = 1
-howTo.Text = "HOW TO PLAY\n\n1. Brainrots march down the yellow lane right in front of you.\n2. Click one to buy it - it moves onto your base.\n3. Every brainrot earns cash every second.\n4. Buy rarer brainrots, upgrade your base, rebirth for double income.\n5. When the Sneaky Snatcher comes, click him 3 times to bonk him away!"
-howTo.TextColor3 = Color3.fromRGB(255, 255, 255)
-howTo.TextSize = 20
-howTo.Font = Enum.Font.Gotham
-howTo.TextWrapped = true
-howTo.TextYAlignment = Enum.TextYAlignment.Top
-howTo.Parent = startScreen
+subtitle.Text = "Buy brainrots off the lane. They earn cash every second.\nBonk the Snatcher 3 times before he steals one!"
+subtitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+subtitle.Font = Enum.Font.SourceSans
+subtitle.TextSize = 24
+subtitle.Parent = startFrame
 
 local playButton = Instance.new("TextButton")
 playButton.Name = "PlayButton"
-playButton.AnchorPoint = Vector2.new(0.5, 0)
-playButton.Position = UDim2.new(0.5, 0, 0.7, 0)
-playButton.Size = UDim2.new(0.3, 0, 0.1, 0)
-playButton.BackgroundColor3 = Color3.fromRGB(60, 200, 90)
+playButton.Size = UDim2.new(0.3, 0, 0.12, 0)
+playButton.Position = UDim2.new(0.35, 0, 0.65, 0)
+playButton.BackgroundColor3 = Color3.fromRGB(80, 200, 90)
 playButton.Text = "PLAY"
 playButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-playButton.TextScaled = true
-playButton.Font = Enum.Font.GothamBlack
-playButton.Parent = startScreen
+playButton.Font = Enum.Font.SourceSansBold
+playButton.TextSize = 36
+playButton.Parent = startFrame
 
-playButton.MouseButton1Click:Connect(function()
-	startScreen.Visible = false
-end)
-
--- The cash display, top right, clear of Roblox's own menu buttons.
-local cashFrame = Instance.new("Frame")
-cashFrame.Name = "CashFrame"
-cashFrame.AnchorPoint = Vector2.new(1, 0)
-cashFrame.Position = UDim2.new(1, -16, 0, 16)
-cashFrame.Size = UDim2.new(0, 280, 0, 96)
-cashFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 45)
-cashFrame.BackgroundTransparency = 0.2
-cashFrame.Parent = gui
+-- HUD, top right so it stays clear of Roblox's own menu buttons.
+local hud = Instance.new("Frame")
+hud.Name = "Hud"
+hud.Size = UDim2.new(0.32, 0, 0.24, 0)
+hud.Position = UDim2.new(0.66, 0, 0.02, 0)
+hud.BackgroundColor3 = Color3.fromRGB(20, 20, 40)
+hud.BackgroundTransparency = 0.3
+hud.Visible = false
+hud.Parent = screen
 
 local cashLabel = Instance.new("TextLabel")
 cashLabel.Name = "CashLabel"
-cashLabel.Size = UDim2.new(1, -16, 0.5, 0)
-cashLabel.Position = UDim2.new(0, 8, 0, 4)
+cashLabel.Size = UDim2.new(0.9, 0, 0.25, 0)
+cashLabel.Position = UDim2.new(0.05, 0, 0.05, 0)
 cashLabel.BackgroundTransparency = 1
 cashLabel.Text = "Cash: $100"
-cashLabel.TextColor3 = Color3.fromRGB(255, 220, 60)
+cashLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+cashLabel.Font = Enum.Font.SourceSansBold
 cashLabel.TextSize = 28
-cashLabel.Font = Enum.Font.GothamBlack
-cashLabel.TextXAlignment = Enum.TextXAlignment.Left
-cashLabel.Parent = cashFrame
+cashLabel.Parent = hud
 
 local incomeLabel = Instance.new("TextLabel")
 incomeLabel.Name = "IncomeLabel"
-incomeLabel.Size = UDim2.new(1, -16, 0.5, 0)
-incomeLabel.Position = UDim2.new(0, 8, 0.5, 0)
+incomeLabel.Size = UDim2.new(0.9, 0, 0.2, 0)
+incomeLabel.Position = UDim2.new(0.05, 0, 0.32, 0)
 incomeLabel.BackgroundTransparency = 1
-incomeLabel.Text = "+$0/s - 0 brainrots"
-incomeLabel.TextColor3 = Color3.fromRGB(140, 255, 140)
-incomeLabel.TextSize = 20
-incomeLabel.Font = Enum.Font.GothamBold
-incomeLabel.TextXAlignment = Enum.TextXAlignment.Left
-incomeLabel.Parent = cashFrame
+incomeLabel.Text = "$0/s"
+incomeLabel.TextColor3 = Color3.fromRGB(120, 255, 120)
+incomeLabel.Font = Enum.Font.SourceSans
+incomeLabel.TextSize = 22
+incomeLabel.Parent = hud
 
--- The raid warning banner, top centre, hidden until a raid comes.
-local raidBanner = Instance.new("TextLabel")
-raidBanner.Name = "RaidBanner"
-raidBanner.AnchorPoint = Vector2.new(0.5, 0)
-raidBanner.Position = UDim2.new(0.5, 0, 0, 16)
-raidBanner.Size = UDim2.new(0.6, 0, 0, 64)
-raidBanner.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-raidBanner.BackgroundTransparency = 0.15
-raidBanner.Text = ""
-raidBanner.TextColor3 = Color3.fromRGB(255, 255, 255)
-raidBanner.TextSize = 22
-raidBanner.Font = Enum.Font.GothamBlack
-raidBanner.TextWrapped = true
-raidBanner.Visible = false
-raidBanner.Parent = gui
+local countLabel = Instance.new("TextLabel")
+countLabel.Name = "CountLabel"
+countLabel.Size = UDim2.new(0.9, 0, 0.2, 0)
+countLabel.Position = UDim2.new(0.05, 0, 0.54, 0)
+countLabel.BackgroundTransparency = 1
+countLabel.Text = "0 brainrots"
+countLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+countLabel.Font = Enum.Font.SourceSans
+countLabel.TextSize = 22
+countLabel.Parent = hud
 
--- The buttons, down the right side: slots, boost, rebirth.
-local function makeButton(name, y, color)
-	local button = Instance.new("TextButton")
-	button.Name = name
-	button.AnchorPoint = Vector2.new(1, 0)
-	button.Position = UDim2.new(1, -16, 0, y)
-	button.Size = UDim2.new(0, 280, 0, 56)
-	button.BackgroundColor3 = color
-	button.TextColor3 = Color3.fromRGB(255, 255, 255)
-	button.TextSize = 18
-	button.Font = Enum.Font.GothamBold
-	button.TextWrapped = true
-	button.Parent = gui
-	return button
-end
+local upgradeButton = Instance.new("TextButton")
+upgradeButton.Name = "UpgradeButton"
+upgradeButton.Size = UDim2.new(0.9, 0, 0.2, 0)
+upgradeButton.Position = UDim2.new(0.05, 0, 0.76, 0)
+upgradeButton.BackgroundColor3 = Color3.fromRGB(80, 140, 220)
+upgradeButton.Text = "Income Boost +25% ($2,500)"
+upgradeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+upgradeButton.Font = Enum.Font.SourceSansBold
+upgradeButton.TextSize = 18
+upgradeButton.Parent = hud
 
-local slotsButton = makeButton("SlotsButton", 128, Color3.fromRGB(70, 130, 220))
-local boostButton = makeButton("BoostButton", 192, Color3.fromRGB(160, 90, 220))
-local rebirthButton = makeButton("RebirthButton", 256, Color3.fromRGB(220, 140, 40))
+-- Raid banner, top centre, only while a raid runs.
+local banner = Instance.new("TextLabel")
+banner.Name = "RaidBanner"
+banner.Size = UDim2.new(0.6, 0, 0.08, 0)
+banner.Position = UDim2.new(0.2, 0, 0.02, 0)
+banner.BackgroundColor3 = Color3.fromRGB(160, 20, 20)
+banner.Text = ""
+banner.TextColor3 = Color3.fromRGB(255, 255, 255)
+banner.Font = Enum.Font.SourceSansBold
+banner.TextSize = 24
+banner.Visible = false
+banner.Parent = screen
 
-slotsButton.MouseButton1Click:Connect(function()
-	upgradeRequest:FireServer("slots")
-end)
-boostButton.MouseButton1Click:Connect(function()
-	upgradeRequest:FireServer("boost")
-end)
-rebirthButton.MouseButton1Click:Connect(function()
-	rebirthRequest:FireServer()
+playButton.MouseButton1Click:Connect(function()
+	startFrame.Visible = false
+	hud.Visible = true
 end)
 
--- The hint bar along the bottom.
-local hint = Instance.new("TextLabel")
-hint.Name = "HintBar"
-hint.AnchorPoint = Vector2.new(0.5, 1)
-hint.Position = UDim2.new(0.5, 0, 1, -16)
-hint.Size = UDim2.new(0.7, 0, 0, 44)
-hint.BackgroundColor3 = Color3.fromRGB(25, 25, 45)
-hint.BackgroundTransparency = 0.2
-hint.Text = "Click a brainrot on the yellow lane to buy it!"
-hint.TextColor3 = Color3.fromRGB(255, 255, 255)
-hint.TextSize = 20
-hint.Font = Enum.Font.GothamBold
-hint.Parent = gui
-
-local function moneyText(amount)
-	if amount >= 1000000 then
-		return string.format("$%.1fM", amount / 1000000)
-	elseif amount >= 1000 then
-		return string.format("$%.1fK", amount / 1000)
-	else
-		return string.format("$%d", math.floor(amount))
-	end
-end
-
--- Every number on screen comes from the server, once a second.
-hudUpdate.OnClientEvent:Connect(function(data)
-	cashLabel.Text = "Cash: " .. moneyText(data.cash)
-	incomeLabel.Text = "+" .. moneyText(data.income) .. "/s - " .. data.owned .. " brainrots - " .. data.slots .. " slots"
-	slotsButton.Text = "+3 Slots (" .. moneyText(data.slotCost) .. ")"
-	boostButton.Text = "Income Boost +25% (" .. moneyText(data.boostCost) .. ")"
-	if data.canRebirth then
-		rebirthButton.Text = "REBIRTH NOW! (2x income)"
-	else
-		rebirthButton.Text = "Rebirth: earn " .. moneyText(data.rebirthCost) .. " total (" .. moneyText(data.lifetime) .. ")"
-	end
+upgradeButton.MouseButton1Click:Connect(function()
+	upgradeRequest:FireServer()
 end)
 
-local bannerUntil = 0
+hudUpdate.OnClientEvent:Connect(function(cash, rate, owned, boost)
+	cashLabel.Text = "Cash: $" .. cash
+	incomeLabel.Text = "$" .. rate .. "/s  (boost x" .. (1 + boost * 0.25) .. ")"
+	countLabel.Text = owned .. " brainrots"
+end)
+
 raidWarning.OnClientEvent:Connect(function(message)
-	raidBanner.Text = message
-	raidBanner.Visible = true
-	bannerUntil = os.clock() + 8
-end)
-
--- Hide the banner again a few seconds after the last warning.
-task.spawn(function()
-	while true do
-		task.wait(0.5)
-		if raidBanner.Visible and os.clock() > bannerUntil then
-			raidBanner.Visible = false
-		end
-	end
+	banner.Text = message
+	banner.Visible = true
+	task.delay(5, function()
+		banner.Visible = false
+	end)
 end)

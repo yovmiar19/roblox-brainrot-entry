@@ -1,12 +1,12 @@
--- init.server: the entry point of Brainrot Bazaar.
--- Rojo turns this folder into a Script called "Server", so the sibling
--- modules (GameServer, WorldBuilder, Thief, BrainrotData) live as children
--- of this very script. That is why the require below reads script.GameServer:
--- script.Parent would be ServerScriptService, which holds no such module.
--- From here on GameServer owns everything: the world, the conveyor lane,
--- buying and income, the Snatcher raids, upgrades and rebirths.
+-- Brainrot Lane starts here. Rojo turns this folder into a Script
+-- called "Server", so the game module sits right beside this file as
+-- a child of the script itself. That is why the require below reads
+-- script.GameServer: script.Parent is ServerScriptService, which has
+-- no GameServer in it, and the old game died on exactly that line.
+-- From here on GameServer runs everything: the world, the lane, the
+-- shop, the income, the thief and the one upgrade.
 
 local GameServer = require(script.GameServer)
 
 GameServer.start()
-print("Brainrot Bazaar is live: grab brainrots, watch the cash roll in, bonk the Snatcher.")
+print("Brainrot Lane is live: buy brainrots off the lane and bonk the Snatcher.")

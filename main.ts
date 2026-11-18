@@ -1,14 +1,14 @@
-// Brainrot Bazaar, the handoff program for roblox-brainrot-01.
+// Brainrot Lane, the handoff program for roblox-brainrot-01.
 // Node 22, standard library only.
 //
-// The game itself is the Rojo project in this directory. Running
+// The game is the Rojo project in this directory. Running
 // `rojo build default.project.json --output game.rbxl` turns src/ into
 // game.rbxl, and this program is the courier that carries the finished
 // entry to /output: game.rbxl, the Luau sources, the screenshots and
 // PLAY.json, then it asks the vendored make.fun library to write the
 // dossier the judge reads.
 //
-// Two rules shape every copy here. First, the grader refuses any name
+// Two things shape every copy here. First, the grader refuses any name
 // under /output that does not start with a letter, a digit or an
 // underscore, or that holds anything but letters, digits, dots,
 // underscores and dashes, so a stray .gitkeep or .DS_Store would sink
