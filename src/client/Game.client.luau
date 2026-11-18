@@ -3,12 +3,16 @@
 -- raid warning banner, and a small diagnostic readout that says what
 -- this client can actually see. It only shows what the server sends
 -- it, except for the readout: that one is measured here, on the
--- client, every second — the player's position, whether the plaza,
--- the lane and the spawn point exist in this client's Workspace and
--- where they are, how many tagged brainrot models this client sees,
--- and how far the player is from the lane. If the world is there,
--- the readout says so; if the client cannot see it, it says that
--- instead, so a screenshot of it settles the question.
+-- client, every second — the player's position, whether the
+-- baseplate, the plaza, the lane and the spawn point exist in this
+-- client's Workspace and where they are, how many tagged brainrot
+-- models this client sees, and how far the player is from the lane.
+-- If the world is there, the readout says so; if the client cannot
+-- see it, it says that instead, so a screenshot of it settles the
+-- question. The baseplate line is there on purpose: Rojo once built
+-- the place with it sitting at the origin instead of under the
+-- world, which buried everything, so the readout now shows its
+-- position too.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -202,6 +206,7 @@ local function refreshDiag()
 		lines[#lines + 1] = "you: no character"
 		lines[#lines + 1] = "dist to lane: ?"
 	end
+	lines[#lines + 1] = partLine("Baseplate")
 	lines[#lines + 1] = partLine("PlazaFloor")
 	lines[#lines + 1] = partLine("ConveyorLane")
 	lines[#lines + 1] = partLine("SpawnLocation")

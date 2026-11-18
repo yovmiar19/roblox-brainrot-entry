@@ -22,9 +22,21 @@ attachment and are sized in studs so they shrink with distance, and the sign sho
 The world itself is built to be impossible to miss: the plaza is a thick green slab (top y=2), the
 lane a thick bright strip (top y=3), and two tall glowing yellow beacon pillars mark the spawn and
 the lane centre. And the client carries a small diagnostic panel at the bottom left that reports,
-once a second, what that client can actually see — the player's position, whether the plaza, the
-lane and the spawn point exist and where they are, how many tagged brainrot models are visible,
-and the distance to the lane — so a single screenshot settles whether the world is really there.
+once a second, what that client can actually see — the player's position, whether the baseplate,
+the plaza, the lane and the spawn point exist and where they are, how many tagged brainrot models
+are visible, and the distance to the lane — so a single screenshot settles whether the world is
+really there.
+
+One real bug was found by that panel and fixed here. Rojo 7.5.1 silently drops the `Position` key
+from `$properties`: it writes `Size` but no `CFrame` at all, so the Baseplate and the SpawnLocation
+arrive in the built place at (0, 0, 0) no matter what the project file says. With the baseplate at
+the origin its top sits at y=10 and buries the plaza, the lane and every walker — the server was
+live, but the player stood on grey at y=13 and saw nothing. Two defences now: the project file
+spells both positions out as `CFrame` (twelve numbers, position plus an identity rotation), which
+Rojo does write, and the server still pins both parts to their right places at startup before it
+builds anything, printing what it found and what it set, so the game works even if the project
+file is ever read the old way again. The diagnostic panel's `Baseplate: YES (0, -10, 0)` line is
+the proof in the next screenshot.
 
 - `src/server/` — GameServer (the cast, the world, buying, income, the thief, the one upgrade),
   init.server (boot: requires `script.GameServer`, never `script.Parent`).

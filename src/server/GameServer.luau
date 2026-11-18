@@ -8,11 +8,20 @@
 -- change. The world is built tall and bright so nobody can miss it:
 -- the plaza is a thick green slab, the lane a thick bright strip,
 -- and two glowing yellow beacon pillars mark the spawn and the lane
--- centre. The spawn itself needs no script: the SpawnLocation sits
--- in the place file, the engine loads the character on its own
--- (CharacterAutoLoads), and the server puts every character beside
--- the lane the moment it appears, so nobody can end up stranded on
--- the bare baseplate far from the game.
+-- centre.
+--
+-- The static geometry gets corrected here on purpose. Rojo 7.5.1
+-- silently drops the Position key from $properties (it writes Size
+-- but no CFrame at all, so the Baseplate and the SpawnLocation land
+-- at (0, 0, 0) in the built place no matter what the project file
+-- says). With the baseplate at the origin its top sits at y=10 and
+-- buries the whole world — plaza, lane, walkers and all — which is
+-- exactly what the owner's screenshots showed: a live server, but a
+-- player standing on grey at y=13 seeing nothing. The project file
+-- now spells the positions out as CFrame instead (which Rojo does
+-- write), and the server still pins both parts to their right
+-- places before it builds anything, so the game works even if the
+-- project file is ever read the old way again.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -68,6 +77,46 @@ local state = {
 
 -- The sign's live status line, filled in by buildWorld. ----------------------
 local signStatus = nil
+
+-- Small helpers ---------------------------------------------------------------
+
+local function vecString(v)
+	return "(" .. math.floor(v.X + 0.5) .. ", " .. math.floor(v.Y + 0.5) .. ", " .. math.floor(v.Z + 0.5) .. ")"
+end
+
+-- Pin the two static parts from the place file to where they belong.
+-- Rojo drops Position from $properties, so a place built from the
+-- project file can arrive with the Baseplate and the SpawnLocation
+-- sitting at the origin instead of where they were written. Left
+-- like that, the baseplate (512 wide, 20 tall) has its top at y=10
+-- and swallows the plaza (top y=2), the lane (top y=3) and every
+-- walker. This runs before anything else is built and before any
+-- player can spawn, and it prints what it found and what it set, so
+-- the Output window proves it ran.
+local function fixStaticGeometry()
+	local baseplate = Workspace:FindFirstChild("Baseplate")
+	if baseplate then
+		local before = vecString(baseplate.Position)
+		baseplate.Position = Vector3.new(0, -10, 0)
+		baseplate.Size = Vector3.new(512, 20, 512)
+		baseplate.Anchored = true
+		print("Brainrot Lane: fixed Baseplate from " .. before .. " to (0, -10, 0), top y=0")
+	else
+		print("Brainrot Lane: WARNING, no Baseplate in the place file to fix")
+	end
+
+	local spawn = Workspace:FindFirstChild("SpawnLocation")
+	if spawn then
+		local before = vecString(spawn.Position)
+		spawn.Position = Vector3.new(0, 3, -6)
+		spawn.Size = Vector3.new(10, 1, 10)
+		spawn.Anchored = true
+		spawn.Neutral = true
+		print("Brainrot Lane: fixed SpawnLocation from " .. before .. " to (0, 3, -6)")
+	else
+		print("Brainrot Lane: WARNING, no SpawnLocation in the place file to fix")
+	end
+end
 
 -- Remotes ---------------------------------------------------------------------
 
@@ -209,13 +258,15 @@ end
 -- World -----------------------------------------------------------------------
 -- The SpawnLocation is NOT built here: it lives in
 -- default.project.json, so it exists in the place before any script
--- runs and can never fail to appear because a script errored.
--- The plaza and the lane are thick slabs that sit proud of the
--- baseplate (plaza top y=2, lane top y=3), and two tall glowing
--- beacon pillars — one beside the spawn, one on the lane centre —
--- make the game visible from anywhere in the place. The spawn
--- beacon stands a few studs east of the spawn point so the player
--- never spawns inside it; both beacons are non-collidable.
+-- runs. Its position is pinned by fixStaticGeometry (Rojo drops the
+-- Position key, so the project file spells it out as CFrame and the
+-- server still sets it by hand). The plaza and the lane are thick
+-- slabs that sit proud of the baseplate (plaza top y=2, lane top
+-- y=3), and two tall glowing beacon pillars — one beside the spawn,
+-- one on the lane centre — make the game visible from anywhere in
+-- the place. The spawn beacon stands a few studs east of the spawn
+-- point so the player never spawns inside it; both beacons are
+-- non-collidable.
 local function buildWorld()
 	makePart("PlazaFloor", Vector3.new(180, 2, 120), Vector3.new(0, 1, 10), Color3.fromRGB(90, 180, 90), Enum.Material.Grass)
 	makePart("ConveyorLane", Vector3.new(150, 2, 8), Vector3.new(0, 2, LANE_Z), Color3.fromRGB(90, 90, 150), Enum.Material.Metal)
@@ -344,8 +395,7 @@ local function onCharacterAdded(player, character)
 	teleportToLane(player)
 	local root = character and (character.PrimaryPart or character:FindFirstChild("HumanoidRootPart"))
 	if root then
-		local p = root.Position
-		print("Brainrot Lane: " .. player.Name .. " spawned at (" .. math.floor(p.X + 0.5) .. ", " .. math.floor(p.Y + 0.5) .. ", " .. math.floor(p.Z + 0.5) .. ")")
+		print("Brainrot Lane: " .. player.Name .. " spawned at " .. vecString(root.Position))
 	end
 end
 
@@ -598,6 +648,7 @@ end
 -- Boot ----------------------------------------------------------------------------------
 function GameServer.start()
 	print("Brainrot Lane: server starting")
+	fixStaticGeometry()
 	buildWorld()
 	print("Brainrot Lane: world built — plaza top y=2, lane top y=3, 2 rails, 2 beacons, 4 bases, 24 pads, sign")
 	print("Brainrot Lane: spawn is static in the place file at (0, 3, -6), CharacterAutoLoads on")
