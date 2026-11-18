@@ -34,9 +34,9 @@ local function makePart(name, size, position, color, material)
 	return part
 end
 
-local function makeLabel(parent, text, size, color)
+local function makeLabel(parent, text, face, color)
 	local gui = Instance.new("SurfaceGui")
-	gui.Face = Enum.NormalId.Top
+	gui.Face = face or Enum.NormalId.Top
 	gui.AlwaysOnTop = false
 	gui.Parent = parent
 	local label = Instance.new("TextLabel")
@@ -76,7 +76,7 @@ function WorldBuilder.buildConveyorLane()
 	gateIn.CanCollide = false
 	local gateOut = makePart("ExitGate", Vector3.new(2, 10, 10), Vector3.new(WorldBuilder.LANE_END_X, 6, WorldBuilder.LANE_Z), Color3.fromRGB(120, 220, 255), Enum.Material.Neon)
 	gateOut.CanCollide = false
-	makeLabel(gateIn, "BRAINROTS IN", UDim2.fromScale(1, 1), Color3.fromRGB(255, 255, 255))
+	makeLabel(gateIn, "BRAINROTS IN", Enum.NormalId.Right, Color3.fromRGB(255, 255, 255))
 end
 
 -- One player base: a platform, a sign with the owner's name, and slot pads.
@@ -89,7 +89,7 @@ function WorldBuilder.buildPlayerBase(index, center, accentColor)
 	makePart("BaseTrimBack" .. index, Vector3.new(WorldBuilder.BASE_SIZE.X + 1, 0.5, 1), Vector3.new(center.X, 1.4, center.Z + WorldBuilder.BASE_SIZE.Z / 2), accentColor, Enum.Material.Neon)
 	-- The sign post at the back of the base.
 	local post = makePart("BaseSign" .. index, Vector3.new(10, 6, 1), Vector3.new(center.X, 6, center.Z + WorldBuilder.BASE_SIZE.Z / 2 - 1), Color3.fromRGB(60, 60, 80), Enum.Material.Wood)
-	makeLabel(post, "BASE " .. index, UDim2.fromScale(1, 1), Color3.fromRGB(255, 255, 255))
+	makeLabel(post, "BASE " .. index, Enum.NormalId.Back, Color3.fromRGB(255, 255, 255))
 	-- Six slot pads in two rows of three, plus two extra rows the player
 	-- unlocks with the slot upgrade (nine, then twelve slots in all).
 	local slots = {}
@@ -140,7 +140,7 @@ function WorldBuilder.buildDecor()
 	-- The big bazaar sign over the north side.
 	local sign = makePart("BazaarSign", Vector3.new(40, 10, 2), Vector3.new(0, 14, -52), Color3.fromRGB(40, 40, 70), Enum.Material.SmoothPlastic)
 	local gui = Instance.new("SurfaceGui")
-	gui.Face = Enum.NormalId.Front
+	gui.Face = Enum.NormalId.Back
 	gui.Parent = sign
 	local title = Instance.new("TextLabel")
 	title.Size = UDim2.fromScale(1, 1)
