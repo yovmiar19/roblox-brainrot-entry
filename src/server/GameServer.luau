@@ -1,8 +1,8 @@
 -- GameServer: the one place that keeps the state of Brainrot Bazaar.
--- It spawns brainrots onto the conveyor lane, sells them to players, pays
+-- It sends brainrots down the conveyor lane, sells them to players, pays
 -- out their income every second, runs the Snatcher raids, and handles
--- rebirths and base upgrades. The client only shows the HUD and asks
--- for rebirths and upgrades through RemoteEvents; the server decides.
+-- rebirths and base upgrades. The client only shows the HUD and asks for
+-- rebirths and upgrades through RemoteEvents; the server decides.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,7 +15,7 @@ local Thief = require(script.Parent.Thief)
 
 local GameServer = {}
 
--- Tuning, all in one place so the loop reads the same numbers everywhere.
+-- Tuning, all in one place so every loop reads the same numbers.
 GameServer.SPAWN_EVERY_SECONDS = 4
 GameServer.WALK_SPEED = 3.5
 GameServer.MAX_WALKING = 12
@@ -61,11 +61,30 @@ local upgradeRequest = Instance.new("RemoteEvent")
 upgradeRequest.Name = "UpgradeRequest"
 upgradeRequest.Parent = ReplicatedStorage
 
+-- Keep the leaderboard cash in step with the server's own cash, so the
+-- number every player sees is always the real one.
+local function syncCashValue(player, playerState)
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if leaderstats then
+		leaderstats.Cash.Value = math.floor(playerState.cash)
+	end
+end
+
 -- Build one brainrot character as a Model of parts, with a name tag that
--- shows its name, its rarity and what it earns every second.
+-- shows its name, its rarity and what it earns every second. Returns the
+-- model, the ClickDetector that buys it, and the rotation that keeps
+-- cylinder bodies standing up: a cylinder's long axis is X by default, so
+-- the upright is a 90-degree roll around Z, and every place this model is
+-- moved to must carry that rotation along, or a plain PivotTo would lay
+-- the cylinder on its side and drag its eyes under the body.
 function GameServer.buildBrainrotModel(data)
 	local model = Instance.new("Model")
 	model.Name = data.name
+
+	local upright = CFrame.new()
+	if data.shape == Enum.PartType.Cylinder then
+		upright = CFrame.Angles(0, 0, math.rad(90))
+	end
 
 	local body = Instance.new("Part")
 	body.Name = "Body"
@@ -77,11 +96,7 @@ function GameServer.buildBrainrotModel(data)
 	body.CanCollide = false
 	body.Parent = model
 	model.PrimaryPart = body
-
-	-- Cylinder bodies stand up: their long axis is X by default.
-	if data.shape == Enum.PartType.Cylinder then
-		body.CFrame = CFrame.Angles(0, 0, math.rad(90))
-	end
+	body.CFrame = CFrame.new(0, 0, 0) * upright
 
 	local halfY = data.size.Y / 2
 	local halfZ = data.size.Z / 2
@@ -144,12 +159,16 @@ function GameServer.buildBrainrotModel(data)
 		accessory.CanCollide = false
 		accessory.Parent = model
 	end
-	-- The floating name tag: name, rarity and money a second.
+	-- The floating name tag: name, rarity and money a second. Small and
+	-- distance-honest on purpose: a big AlwaysOnTop tag reads the same
+	-- size from anywhere, hides the body behind it, and makes a faraway
+	-- brainrot look close. This one shrinks with distance and lets walls
+	-- hide it, so what the player sees is where the brainrot really is.
 	local tag = Instance.new("BillboardGui")
 	tag.Name = "NameTag"
-	tag.Size = UDim2.fromOffset(240, 70)
+	tag.Size = UDim2.fromOffset(160, 48)
 	tag.StudsOffset = Vector3.new(0, halfY + 2.5, 0)
-	tag.AlwaysOnTop = true
+	tag.AlwaysOnTop = false
 	tag.Parent = body
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
@@ -159,11 +178,24 @@ function GameServer.buildBrainrotModel(data)
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamBlack
 	label.Parent = tag
-	-- Clicking it buys it; the server decides whether the sale goes through.
+	-- A generous invisible hitbox around the body, so clicks land easily:
+	-- the body itself is only a few studs across, and clicking a small
+	-- moving target from a distance is fiddly. The ClickDetector lives
+	-- on the hitbox, with a long reach, so buying works from anywhere on
+	-- the plaza.
+	local hitbox = Instance.new("Part")
+	hitbox.Name = "Hitbox"
+	hitbox.Shape = Enum.PartType.Block
+	hitbox.Size = data.size + Vector3.new(2, 2, 2)
+	hitbox.CFrame = body.CFrame
+	hitbox.Transparency = 1
+	hitbox.Anchored = true
+	hitbox.CanCollide = false
+	hitbox.Parent = model
 	local clicker = Instance.new("ClickDetector")
-	clicker.MaxActivationDistance = 80
-	clicker.Parent = body
-	return model, clicker
+	clicker.MaxActivationDistance = 200
+	clicker.Parent = hitbox
+	return model, clicker, upright
 end
 
 function GameServer.maxSlotsFor(playerState)
@@ -221,15 +253,18 @@ function GameServer.spawnBrainrotOnLane()
 		return
 	end
 	local data = BrainrotData.rollCharacter()
-	local model, clicker = GameServer.buildBrainrotModel(data)
+	local model, clicker, upright = GameServer.buildBrainrotModel(data)
 	local brainrot = {
 		id = nextBrainrotId,
 		data = data,
 		model = model,
+		upright = upright,
 		x = WorldBuilder.LANE_START_X,
 	}
 	nextBrainrotId += 1
-	model:PivotTo(CFrame.new(brainrot.x, WorldBuilder.LANE_Y + 1 + data.size.Y / 2, WorldBuilder.LANE_Z))
+	-- Carry the upright rotation along: a plain CFrame.new here would
+	-- reset the model to no rotation and lay cylinder bodies on their side.
+	model:PivotTo(CFrame.new(brainrot.x, WorldBuilder.LANE_Y + 1 + data.size.Y / 2, WorldBuilder.LANE_Z) * upright)
 	model.Parent = Workspace
 	clicker.MouseClick:Connect(function(player)
 		GameServer.buyBrainrot(player, brainrot.id)
@@ -266,14 +301,13 @@ function GameServer.buyBrainrot(player, brainrotId)
 	table.remove(walking, foundIndex)
 	local slotIndex = #playerState.owned + 1
 	local slotPos = baseSlotsByIndex[playerState.baseIndex][slotIndex]
-	brainrot.model:PivotTo(CFrame.new(slotPos + Vector3.new(0, brainrot.data.size.Y / 2, 0)))
+	brainrot.model:PivotTo(CFrame.new(slotPos + Vector3.new(0, brainrot.data.size.Y / 2, 0)) * brainrot.upright)
 	brainrot.slotPos = slotPos
-	brainrot.phase = math.random() * math.pi * 2
+	-- The bob phase comes from the brainrot's id, so it is steady and
+	-- varies from one brainrot to the next without a roll of the dice.
+	brainrot.phase = (brainrot.id % 8) * math.pi / 4
 	table.insert(playerState.owned, brainrot)
-	local leaderstats = player:FindFirstChild("leaderstats")
-	if leaderstats then
-		leaderstats.Cash.Value = math.floor(playerState.cash)
-	end
+	syncCashValue(player, playerState)
 	GameServer.sendHud(player)
 end
 
@@ -341,6 +375,7 @@ function GameServer.runRaid()
 		local fledState = stateByPlayer[fledPlayer]
 		if fledState then
 			fledState.cash += bonus
+			syncCashValue(fledPlayer, fledState)
 			GameServer.sendHud(fledPlayer)
 		end
 		raidWarning:FireAllClients(fledPlayer.Name .. " BONKED THE SNATCHER AWAY! +" .. BrainrotData.moneyText(bonus))
@@ -417,6 +452,7 @@ function GameServer.buyUpgrade(player, kind)
 		playerState.boostLevel += 1
 		playerState.incomeMultiplier = (2 ^ playerState.rebirths) * (1 + 0.25 * playerState.boostLevel)
 	end
+	syncCashValue(player, playerState)
 	GameServer.sendHud(player)
 end
 
@@ -507,10 +543,7 @@ function GameServer.start()
 					local earned = GameServer.incomePerSecond(playerState)
 					playerState.cash += earned
 					playerState.lifetimeEarned += earned
-					local leaderstats = player:FindFirstChild("leaderstats")
-					if leaderstats then
-						leaderstats.Cash.Value = math.floor(playerState.cash)
-					end
+					syncCashValue(player, playerState)
 				end
 			end
 			GameServer.sendHudToAll()
@@ -539,7 +572,7 @@ function GameServer.start()
 					entry.model:Destroy()
 					table.remove(walking, i)
 				else
-					entry.model:PivotTo(CFrame.new(entry.x, WorldBuilder.LANE_Y + 1 + entry.data.size.Y / 2, WorldBuilder.LANE_Z))
+					entry.model:PivotTo(CFrame.new(entry.x, WorldBuilder.LANE_Y + 1 + entry.data.size.Y / 2, WorldBuilder.LANE_Z) * entry.upright)
 				end
 			end
 		end
@@ -547,7 +580,7 @@ function GameServer.start()
 			for _, owned in ipairs(playerState.owned) do
 				if owned.model and owned.model.Parent and owned.slotPos then
 					local bob = math.sin(now * 2 + (owned.phase or 0)) * 0.3
-					owned.model:PivotTo(CFrame.new(owned.slotPos + Vector3.new(0, owned.data.size.Y / 2 + bob, 0)))
+					owned.model:PivotTo(CFrame.new(owned.slotPos + Vector3.new(0, owned.data.size.Y / 2 + bob, 0)) * owned.upright)
 				end
 			end
 		end

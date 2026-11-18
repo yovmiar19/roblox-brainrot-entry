@@ -1,10 +1,12 @@
--- BrainrotData: the cast of Brainrot Bazaar.
--- Every character is an original absurd creation of this game: its name,
--- its look, its rarity, what it costs and what it earns every second.
--- Nothing here copies any character, name or asset from another game.
+-- BrainrotData: the cast of Brainrot Bazaar, and nothing else.
+-- Each character is an original absurd invention of this game: a name, a
+-- look, a rarity, a price and what it pays every second. No character,
+-- name or asset here is copied from any other game.
 
 local BrainrotData = {}
 
+-- How common each rarity is when the lane rolls a new brainrot, and the
+-- colours the name tags use for it.
 BrainrotData.RARITIES = {
 	Common = { weight = 45, color = Color3.fromRGB(120, 200, 120), labelColor = Color3.fromRGB(220, 255, 220) },
 	Uncommon = { weight = 25, color = Color3.fromRGB(100, 170, 255), labelColor = Color3.fromRGB(200, 225, 255) },
@@ -14,7 +16,8 @@ BrainrotData.RARITIES = {
 	Mythic = { weight = 1, color = Color3.fromRGB(255, 80, 80), labelColor = Color3.fromRGB(255, 200, 200) },
 }
 
--- id, name, rarity, cost, income per second, body color, body shape, size, blurb.
+-- The nine characters, cheapest first. id, name, rarity, cost, income per
+-- second, body colour, body shape, body size, and a one-line joke.
 BrainrotData.CATALOGUE = {
 	{
 		id = "noodle_ned",
@@ -117,7 +120,7 @@ BrainrotData.CATALOGUE = {
 	},
 }
 
--- Pick one character at random, weighted by rarity, the way the lane does.
+-- Roll one character, weighted by rarity, the way the conveyor does.
 function BrainrotData.rollCharacter()
 	local total = 0
 	for _, entry in ipairs(BrainrotData.CATALOGUE) do
@@ -134,6 +137,7 @@ function BrainrotData.rollCharacter()
 	return BrainrotData.CATALOGUE[1]
 end
 
+-- Look a character up by its id, or nil when there is no such id.
 function BrainrotData.byId(id)
 	for _, entry in ipairs(BrainrotData.CATALOGUE) do
 		if entry.id == id then
@@ -143,7 +147,7 @@ function BrainrotData.byId(id)
 	return nil
 end
 
--- Short money text: 1250 becomes $1.3K, 2400000 becomes $2.4M.
+-- Short money text: 1250 becomes $1.3K and 2400000 becomes $2.4M.
 function BrainrotData.moneyText(amount)
 	if amount >= 1000000 then
 		return string.format("$%.1fM", amount / 1000000)

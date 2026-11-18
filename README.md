@@ -22,3 +22,13 @@ Run it as the grader does, writing `out/` in place of `/output`:
     mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
 The rules are in the kit's RULES.txt, which gives every command in order (Before you submit, then Enter).
+
+## Visibility fix (2026-11-18)
+
+Playtesting showed the game ran but the player could not see it: the spawn sat 78 studs from the lane,
+the name tags were big AlwaysOnTop billboards that read the same size from any distance, and the
+ClickDetector was a short-range click on a tiny body. Worse, every `PivotTo` reset the model's rotation,
+so the cylinder brainrots (Captain Pickle, Baron Von Banana) lay on their sides with their eyes underneath.
+Fixed by moving the spawn beside the lane, shrinking the tags to 160×48 and turning off AlwaysOnTop,
+giving every brainrot a larger invisible hitbox with a 200-stud click range, and carrying each model's
+upright rotation through every `PivotTo` (spawn, buy, walking, bobbing).

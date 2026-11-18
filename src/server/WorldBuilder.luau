@@ -1,13 +1,14 @@
--- WorldBuilder: builds the whole 3D world of Brainrot Bazaar out of parts.
+-- WorldBuilder: builds the whole 3D world of Brainrot Bazaar from parts.
 -- Everything is made in code, so the place file stays small and the world
--- is exactly what this script says: a market plaza, a conveyor lane where
--- the brainrots march by, four player bases, stalls, trees and lamps.
+-- is exactly what this script says: a green market plaza, a conveyor lane
+-- the brainrots march along, four player bases, stalls, trees and lamps.
 
 local WorldBuilder = {}
 
 local Workspace = game:GetService("Workspace")
 
--- Where the game happens.
+-- Where the game happens. The lane runs east-west across the north side
+-- of the plaza; the bases sit in a row on the south side.
 WorldBuilder.LANE_START_X = -70
 WorldBuilder.LANE_END_X = 70
 WorldBuilder.LANE_Z = -20
@@ -19,8 +20,14 @@ WorldBuilder.BASE_CENTERS = {
 	Vector3.new(45, 0, 32),
 }
 WorldBuilder.BASE_SIZE = Vector3.new(24, 1, 20)
-WorldBuilder.SPAWN_POINT = Vector3.new(0, 3, 58)
+-- Players appear right beside the conveyor, on the stone path, facing the
+-- lane. The old spawn sat 78 studs away on the bare baseplate, so the lane
+-- and the brainrots were tiny dots and the first thing a player saw was
+-- empty ground. Now the yellow rails and the walking brainrots fill the
+-- screen the moment Play is pressed.
+WorldBuilder.SPAWN_POINT = Vector3.new(0, 3, -6)
 
+-- One anchored part in the world.
 local function makePart(name, size, position, color, material)
 	local part = Instance.new("Part")
 	part.Name = name
@@ -34,6 +41,7 @@ local function makePart(name, size, position, color, material)
 	return part
 end
 
+-- A text label pasted onto one face of a part.
 local function makeLabel(parent, text, face, color)
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = face or Enum.NormalId.Top
@@ -51,12 +59,12 @@ local function makeLabel(parent, text, face, color)
 end
 
 function WorldBuilder.buildPlaza()
-	-- A green plaza floor over the grey baseplate.
+	-- A green plaza floor laid over the grey baseplate.
 	local plaza = makePart("PlazaFloor", Vector3.new(180, 1, 120), Vector3.new(0, 0.5, 10), Color3.fromRGB(90, 180, 90), Enum.Material.Grass)
 	plaza.CanCollide = true
-	-- A stone path from the spawn to the lane.
+	-- A stone path from the spawn down to the lane and on to the bases.
 	makePart("MainPath", Vector3.new(10, 0.2, 70), Vector3.new(0, 1.1, 22), Color3.fromRGB(200, 190, 170), Enum.Material.Slate)
-	-- A ring of flowers around the plaza edge.
+	-- A ring of flowers around the edge of the plaza.
 	for i = 1, 12 do
 		local angle = (i / 12) * math.pi * 2
 		local x = math.cos(angle) * 80
@@ -71,7 +79,7 @@ function WorldBuilder.buildConveyorLane()
 	-- Bright yellow rails on both sides so the lane reads from far away.
 	makePart("LaneRailNorth", Vector3.new(150, 1.5, 1), Vector3.new(0, WorldBuilder.LANE_Y + 0.5, WorldBuilder.LANE_Z - 4.5), Color3.fromRGB(255, 210, 40), Enum.Material.Neon)
 	makePart("LaneRailSouth", Vector3.new(150, 1.5, 1), Vector3.new(0, WorldBuilder.LANE_Y + 0.5, WorldBuilder.LANE_Z + 4.5), Color3.fromRGB(255, 210, 40), Enum.Material.Neon)
-	-- A spawn gate at the west end and an exit gate at the east end.
+	-- An orange gate where the brainrots come in and a blue one where they leave.
 	local gateIn = makePart("SpawnGate", Vector3.new(2, 10, 10), Vector3.new(WorldBuilder.LANE_START_X, 6, WorldBuilder.LANE_Z), Color3.fromRGB(255, 120, 60), Enum.Material.Neon)
 	gateIn.CanCollide = false
 	local gateOut = makePart("ExitGate", Vector3.new(2, 10, 10), Vector3.new(WorldBuilder.LANE_END_X, 6, WorldBuilder.LANE_Z), Color3.fromRGB(120, 220, 255), Enum.Material.Neon)
@@ -84,14 +92,14 @@ end
 function WorldBuilder.buildPlayerBase(index, center, accentColor)
 	local platform = makePart("BasePlatform" .. index, WorldBuilder.BASE_SIZE, Vector3.new(center.X, 1, center.Z), Color3.fromRGB(210, 200, 180), Enum.Material.Slate)
 	platform.Name = "BasePlatform" .. index
-	-- A coloured trim so each base is easy to tell apart.
+	-- A coloured trim, front and back, so each base is easy to tell apart.
 	makePart("BaseTrim" .. index, Vector3.new(WorldBuilder.BASE_SIZE.X + 1, 0.5, 1), Vector3.new(center.X, 1.4, center.Z - WorldBuilder.BASE_SIZE.Z / 2), accentColor, Enum.Material.Neon)
 	makePart("BaseTrimBack" .. index, Vector3.new(WorldBuilder.BASE_SIZE.X + 1, 0.5, 1), Vector3.new(center.X, 1.4, center.Z + WorldBuilder.BASE_SIZE.Z / 2), accentColor, Enum.Material.Neon)
 	-- The sign post at the back of the base.
 	local post = makePart("BaseSign" .. index, Vector3.new(10, 6, 1), Vector3.new(center.X, 6, center.Z + WorldBuilder.BASE_SIZE.Z / 2 - 1), Color3.fromRGB(60, 60, 80), Enum.Material.Wood)
 	makeLabel(post, "BASE " .. index, Enum.NormalId.Back, Color3.fromRGB(255, 255, 255))
-	-- Six slot pads in two rows of three, plus two extra rows the player
-	-- unlocks with the slot upgrade (nine, then twelve slots in all).
+	-- Six slot pads in two rows of three, plus two more rows the player
+	-- unlocks with the slot upgrade: nine slots, then twelve in all.
 	local slots = {}
 	for row = 1, 4 do
 		for col = 1, 3 do

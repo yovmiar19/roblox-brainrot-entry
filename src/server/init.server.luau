@@ -1,4 +1,4 @@
--- init.server: entry point for Brainrot Bazaar.
+-- init.server: the entry point of Brainrot Bazaar.
 -- Rojo turns this folder into a Script called "Server", so the sibling
 -- modules (GameServer, WorldBuilder, Thief, BrainrotData) live as children
 -- of this very script. That is why the require below reads script.GameServer:

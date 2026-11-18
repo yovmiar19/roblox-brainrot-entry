@@ -1,19 +1,23 @@
-// Brainrot Bazaar, handed in for roblox-brainrot-01 (Node 22, stdlib only).
-// The game itself is the Rojo project in this directory: `rojo build
-// default.project.json --output game.rbxl` turns src/ into game.rbxl, and
-// this program is the courier that carries the entry to /output. It puts
-// game.rbxl, the Luau sources, the screenshots and PLAY.json in place, then
-// asks the vendored make.fun library to write the dossier the judge reads.
+// Brainrot Bazaar, the handoff program for roblox-brainrot-01.
+// Node 22, standard library only.
 //
-// Two rules shape every copy here. First, the grader refuses any name under
-// /output that does not start with a letter, a digit or an underscore, or
-// holds anything but letters, digits, dots, underscores and dashes, so a
-// stray .gitkeep or .DS_Store would sink the entry: src/ and screenshots/
-// are copied skipping every name that starts with a dot, at any depth.
-// Second, the program runs twice and both runs must write identical bytes,
-// so nothing here depends on the clock or on chance.
+// The game itself is the Rojo project in this directory. Running
+// `rojo build default.project.json --output game.rbxl` turns src/ into
+// game.rbxl, and this program is the courier that carries the finished
+// entry to /output: game.rbxl, the Luau sources, the screenshots and
+// PLAY.json, then it asks the vendored make.fun library to write the
+// dossier the judge reads.
 //
-// To run it like the grader does, outside its container:
+// Two rules shape every copy here. First, the grader refuses any name
+// under /output that does not start with a letter, a digit or an
+// underscore, or that holds anything but letters, digits, dots,
+// underscores and dashes, so a stray .gitkeep or .DS_Store would sink
+// the entry: src/ and screenshots/ are copied skipping every name that
+// starts with a dot, at any depth. Second, the program runs twice and
+// both runs must write identical bytes, so nothing here depends on the
+// clock or on chance.
+//
+// To run it the way the grader does, outside its container:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
 import { copyFileSync, cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -24,7 +28,7 @@ import { buildDossier } from './vendor/makefun-roblox.ts';
 const here = fileURLToPath(new URL('.', import.meta.url));
 const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-// Keep every dotted name out of the output, files and folders alike.
+// A name is fit to copy only when it does not start with a dot.
 function isVisibleName(path: string): boolean {
   return !basename(path).startsWith('.');
 }
@@ -41,10 +45,10 @@ if (existsSync(join(here, 'screenshots'))) {
   cpSync(join(here, 'screenshots'), join(outDir, 'screenshots'), { recursive: true, filter: isVisibleName });
 }
 
-// The caps match the scorer's own: at most four screenshots of 256 KiB, a
-// place of at most 500000 instances, scripts of at most 8 MiB of source in
-// all, and at most 1048576 characters of script paths. The dossier text is
-// capped at 65536 bytes; only that one shapes the bytes that are written.
+// These caps match the scorer's own: at most four screenshots of 256 KiB,
+// a place of at most 500000 instances, scripts of at most 8 MiB of source
+// in all, and at most 1048576 characters of script paths. The dossier text
+// is capped at 65536 bytes; only that one shapes the bytes written.
 const dossier = buildDossier(outDir, {
   text_max_bytes: 65536,
   screenshots: { max: 4, max_bytes: 262144 },

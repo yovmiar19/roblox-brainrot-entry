@@ -1,8 +1,8 @@
 -- Thief: the Sneaky Snatcher, the threat of Brainrot Bazaar.
--- Every so often he sneaks in from the edge of the map, runs to the richest
--- player's base and tries to steal their most valuable brainrot. Players
--- click him to bonk him away: three bonks and he flees, dropping a bonus.
--- If he reaches the brainrot first, it is gone for good.
+-- Every so often he sneaks in from the edge of the map, runs to the
+-- richest player's base and tries to steal their most valuable brainrot.
+-- Players click him to bonk him away: three bonks and he flees, dropping
+-- a bonus. If he reaches the brainrot first, it is gone for good.
 
 local Thief = {}
 
@@ -76,12 +76,14 @@ local function buildSnatcherModel()
 	sackWeld.Part0 = body
 	sackWeld.Part1 = sack
 	sackWeld.Parent = sack
-	-- The name tag, so every player knows who he is.
+	-- The name tag, so every player knows who he is. Kept small and
+	-- distance-honest like the brainrot tags, so it never hides the body
+	-- or reads the same size from across the map.
 	local tag = Instance.new("BillboardGui")
 	tag.Name = "NameTag"
-	tag.Size = UDim2.fromOffset(220, 60)
+	tag.Size = UDim2.fromOffset(160, 48)
 	tag.StudsOffset = Vector3.new(0, 4, 0)
-	tag.AlwaysOnTop = true
+	tag.AlwaysOnTop = false
 	tag.Parent = body
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
@@ -91,9 +93,11 @@ local function buildSnatcherModel()
 	label.TextScaled = true
 	label.Font = Enum.Font.GothamBlack
 	label.Parent = tag
-	-- Clicking him bonks him.
+	-- Clicking him bonks him. The range is generous on purpose: he is
+	-- small, he moves fast, and the player should be able to bonk him
+	-- from anywhere on the plaza.
 	local clicker = Instance.new("ClickDetector")
-	clicker.MaxActivationDistance = 80
+	clicker.MaxActivationDistance = 200
 	clicker.Parent = body
 	clicker.MouseClick:Connect(function(_player)
 		Thief.bonkThief()
