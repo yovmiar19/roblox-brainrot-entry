@@ -35,7 +35,12 @@ local GameServer = {}
 local LANE_Z = -20
 local LANE_X_MIN = -70
 local LANE_X_MAX = 75
-local SPAWN_POS = Vector3.new(0, 3, -6)
+-- The character drops in 2 studs above the glowing spawn pad (the pad
+-- itself is a solid-looking marker at y 2.5..3.5, so a pivot at y=3
+-- would land the character's centre inside it and physics would shove
+-- him under the pad where nobody can see him). From y=5 he falls a
+-- short hop onto the plaza (top y=2) and stands clear, root near y=5.
+local SPAWN_POS = Vector3.new(0, 5, -6)
 local WALK_SPEED = 6
 local THIEF_SPEED = 8
 local START_CASH = 100
@@ -112,7 +117,12 @@ local function fixStaticGeometry()
 		spawn.Size = Vector3.new(10, 1, 10)
 		spawn.Anchored = true
 		spawn.Neutral = true
-		print("Brainrot Lane: fixed SpawnLocation from " .. before .. " to (0, 3, -6)")
+		-- The pad is a glowing marker and a spawn reference, not a
+		-- floor: the player stands on the plaza underneath it (top
+		-- y=2), so it must never be solid, or a teleported character
+		-- whose pivot lands inside it gets shoved under and hidden.
+		spawn.CanCollide = false
+		print("Brainrot Lane: fixed SpawnLocation from " .. before .. " to (0, 3, -6), non-collidable")
 	else
 		print("Brainrot Lane: WARNING, no SpawnLocation in the place file to fix")
 	end

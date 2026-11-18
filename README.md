@@ -38,6 +38,16 @@ builds anything, printing what it found and what it set, so the game works even 
 file is ever read the old way again. The diagnostic panel's `Baseplate: YES (0, -10, 0)` line is
 the proof in the next screenshot.
 
+A second bug hid the character himself once the world was visible. The teleport dropped the
+character's pivot exactly onto the spawn pad's centre (0, 3, -6), and the pad was a solid part
+(its `CanCollide` was never switched off), so the pivot landed inside solid plastic and physics
+pushed the character down under the pad, out of sight — the monsters walked past while the
+player was invisible. Two defences again: the pad is now non-collidable at startup (it is only
+a glowing marker; the player stands on the plaza beneath it), and the teleport target is raised
+to (0, 5, -6), so the character falls a short hop onto the plaza and lands standing, root near
+y=5, clear of the pad. The diagnostic panel's `you:` line is the proof: it should read near
+(0, 5, -6) once the character has landed.
+
 - `src/server/` — GameServer (the cast, the world, buying, income, the thief, the one upgrade),
   init.server (boot: requires `script.GameServer`, never `script.Parent`).
 - `src/client/Game.client.luau` — start screen, cash/income HUD, upgrade button, teleport button,
