@@ -19,10 +19,17 @@ Buying works by holding E on a ProximityPrompt (click is only the backup), name 
 attachment and are sized in studs so they shrink with distance, and the sign shows a live
 "SERVER ALIVE" line with the walker count so anyone can see the server is running.
 
+The world itself is built to be impossible to miss: the plaza is a thick green slab (top y=2), the
+lane a thick bright strip (top y=3), and two tall glowing yellow beacon pillars mark the spawn and
+the lane centre. And the client carries a small diagnostic panel at the bottom left that reports,
+once a second, what that client can actually see — the player's position, whether the plaza, the
+lane and the spawn point exist and where they are, how many tagged brainrot models are visible,
+and the distance to the lane — so a single screenshot settles whether the world is really there.
+
 - `src/server/` — GameServer (the cast, the world, buying, income, the thief, the one upgrade),
   init.server (boot: requires `script.GameServer`, never `script.Parent`).
 - `src/client/Game.client.luau` — start screen, cash/income HUD, upgrade button, teleport button,
-  raid banner.
+  raid banner, diagnostic readout.
 - `game.rbxl` is the place Rojo builds from `src/` and `default.project.json`:
   `rojo build default.project.json --output game.rbxl`.
 - `main.ts` (Node 22, standard library only) hands the game in: it copies `game.rbxl`, `src/`,

@@ -1,15 +1,18 @@
--- Brainrot Lane: the server side, all in this one module.
--- Brainrots stroll down the lane, a player buys one with E (or a
--- click), it parks on their base and pays cash every second, and a
--- thief drops in on a timer to steal one unless players bonk him.
+-- Brainrot Lane, server side: one module runs the whole game.
+-- Brainrots stroll down the lane, a player holds E on one to buy
+-- it, it parks on their base and pays cash every second, and a thief
+-- drops in on a timer to steal one unless players bonk him away.
 --
--- Deliberately plain: every body is a ball or an axis-aligned
+-- Kept plain on purpose: every body is a ball or an axis-aligned
 -- block, nothing ever turns, and every move is only a position
--- change. The spawn is bulletproof by design: the SpawnLocation
--- sits in the place file itself, the engine loads the character on
--- its own (CharacterAutoLoads), and the server teleports every
--- character to the lane the moment it appears, so nobody can end
--- up stranded on the bare baseplate far from the game.
+-- change. The world is built tall and bright so nobody can miss it:
+-- the plaza is a thick green slab, the lane a thick bright strip,
+-- and two glowing yellow beacon pillars mark the spawn and the lane
+-- centre. The spawn itself needs no script: the SpawnLocation sits
+-- in the place file, the engine loads the character on its own
+-- (CharacterAutoLoads), and the server puts every character beside
+-- the lane the moment it appears, so nobody can end up stranded on
+-- the bare baseplate far from the game.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -207,11 +210,22 @@ end
 -- The SpawnLocation is NOT built here: it lives in
 -- default.project.json, so it exists in the place before any script
 -- runs and can never fail to appear because a script errored.
+-- The plaza and the lane are thick slabs that sit proud of the
+-- baseplate (plaza top y=2, lane top y=3), and two tall glowing
+-- beacon pillars — one beside the spawn, one on the lane centre —
+-- make the game visible from anywhere in the place. The spawn
+-- beacon stands a few studs east of the spawn point so the player
+-- never spawns inside it; both beacons are non-collidable.
 local function buildWorld()
-	makePart("PlazaFloor", Vector3.new(180, 1, 120), Vector3.new(0, 0.5, 10), Color3.fromRGB(90, 180, 90), Enum.Material.Grass)
-	makePart("ConveyorLane", Vector3.new(150, 1, 8), Vector3.new(0, 1, LANE_Z), Color3.fromRGB(50, 50, 70), Enum.Material.Metal)
-	makePart("RailNorth", Vector3.new(150, 0.5, 1), Vector3.new(0, 1.5, -24), Color3.fromRGB(255, 220, 0), Enum.Material.Neon)
-	makePart("RailSouth", Vector3.new(150, 0.5, 1), Vector3.new(0, 1.5, -16), Color3.fromRGB(255, 220, 0), Enum.Material.Neon)
+	makePart("PlazaFloor", Vector3.new(180, 2, 120), Vector3.new(0, 1, 10), Color3.fromRGB(90, 180, 90), Enum.Material.Grass)
+	makePart("ConveyorLane", Vector3.new(150, 2, 8), Vector3.new(0, 2, LANE_Z), Color3.fromRGB(90, 90, 150), Enum.Material.Metal)
+	makePart("RailNorth", Vector3.new(150, 0.5, 1), Vector3.new(0, 3.25, -24), Color3.fromRGB(255, 220, 0), Enum.Material.Neon)
+	makePart("RailSouth", Vector3.new(150, 0.5, 1), Vector3.new(0, 3.25, -16), Color3.fromRGB(255, 220, 0), Enum.Material.Neon)
+
+	local spawnBeacon = makePart("BeaconSpawn", Vector3.new(2, 30, 2), Vector3.new(4, 15, -6), Color3.fromRGB(255, 220, 0), Enum.Material.Neon)
+	spawnBeacon.CanCollide = false
+	local laneBeacon = makePart("BeaconLane", Vector3.new(2, 30, 2), Vector3.new(0, 15, LANE_Z), Color3.fromRGB(255, 220, 0), Enum.Material.Neon)
+	laneBeacon.CanCollide = false
 
 	for _, bx in ipairs(BASE_X) do
 		makePart("Base", Vector3.new(24, 1, 20), Vector3.new(bx, 0.5, 32), Color3.fromRGB(180, 180, 190), Enum.Material.SmoothPlastic)
@@ -326,8 +340,13 @@ local function teleportToLane(player)
 	return true
 end
 
-local function onCharacterAdded(player, _character)
+local function onCharacterAdded(player, character)
 	teleportToLane(player)
+	local root = character and (character.PrimaryPart or character:FindFirstChild("HumanoidRootPart"))
+	if root then
+		local p = root.Position
+		print("Brainrot Lane: " .. player.Name .. " spawned at (" .. math.floor(p.X + 0.5) .. ", " .. math.floor(p.Y + 0.5) .. ", " .. math.floor(p.Z + 0.5) .. ")")
+	end
 end
 
 local function onPlayerAdded(player)
@@ -410,10 +429,12 @@ function GameServer.buyBrainrot(player, walker)
 end
 
 -- Walking brainrots ---------------------------------------------------------------
+-- Walkers stand on the lane, whose top is now y=3, so their body
+-- centre sits at 3 + size/2.
 
 local function spawnWalker()
 	local def = CAST[math.random(1, #CAST)]
-	local y = 1.5 + def.size / 2
+	local y = 3 + def.size / 2
 	local model, click, prompt = buildBrainrot(def, Vector3.new(LANE_X_MIN, y, LANE_Z), "Buy $" .. def.price)
 	local walker = { def = def, model = model, click = click, prompt = prompt, x = LANE_X_MIN, y = y, phase = math.random() * math.pi * 2, owned = false }
 	click.MouseClick:Connect(function(player)
@@ -436,7 +457,7 @@ local function startRaid()
 	if state.thief then
 		return
 	end
-	local y = 1.5 + THIEF_DEF.size / 2
+	local y = 3 + THIEF_DEF.size / 2
 	local model, click, prompt = buildBrainrot(THIEF_DEF, Vector3.new(LANE_X_MAX, y, LANE_Z), "Bonk!")
 	state.thief = { model = model, click = click, prompt = prompt, x = LANE_X_MAX, y = y, hits = 0 }
 	click.MouseClick:Connect(function(player)
@@ -578,7 +599,7 @@ end
 function GameServer.start()
 	print("Brainrot Lane: server starting")
 	buildWorld()
-	print("Brainrot Lane: world built — plaza, lane, 2 rails, 4 bases, 24 pads, sign")
+	print("Brainrot Lane: world built — plaza top y=2, lane top y=3, 2 rails, 2 beacons, 4 bases, 24 pads, sign")
 	print("Brainrot Lane: spawn is static in the place file at (0, 3, -6), CharacterAutoLoads on")
 	Remotes.UpgradeRequest.OnServerEvent:Connect(onUpgradeRequest)
 	Remotes.TeleportRequest.OnServerEvent:Connect(onTeleportRequest)

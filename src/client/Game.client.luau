@@ -1,13 +1,21 @@
 -- Brainrot Lane, client side: the start screen, the cash and income
--- display, the one upgrade button, a teleport-to-lane button, and the
--- raid warning banner. It only shows what the server sends it; every
--- number on screen comes from the server's HudUpdate, the upgrade
--- button only asks the server through UpgradeRequest, and pressing
--- PLAY (or the teleport button) asks the server through
--- TeleportRequest to put the character right beside the lane.
+-- display, the one upgrade button, a teleport-to-lane button, the
+-- raid warning banner, and a small diagnostic readout that says what
+-- this client can actually see. It only shows what the server sends
+-- it, except for the readout: that one is measured here, on the
+-- client, every second — the player's position, whether the plaza,
+-- the lane and the spawn point exist in this client's Workspace and
+-- where they are, how many tagged brainrot models this client sees,
+-- and how far the player is from the lane. If the world is there,
+-- the readout says so; if the client cannot see it, it says that
+-- instead, so a screenshot of it settles the question.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local LANE_Z = -20
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -140,6 +148,76 @@ banner.Font = Enum.Font.SourceSansBold
 banner.TextSize = 24
 banner.Visible = false
 banner.Parent = screen
+
+-- Diagnostic readout, bottom left, always visible. It reports what
+-- this client itself can see, refreshed once a second.
+local diagLabel = Instance.new("TextLabel")
+diagLabel.Name = "DiagLabel"
+diagLabel.Size = UDim2.new(0.42, 0, 0.24, 0)
+diagLabel.Position = UDim2.new(0.01, 0, 0.74, 0)
+diagLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+diagLabel.BackgroundTransparency = 0.35
+diagLabel.TextColor3 = Color3.fromRGB(255, 255, 120)
+diagLabel.Font = Enum.Font.SourceSansBold
+diagLabel.TextSize = 14
+diagLabel.TextXAlignment = Enum.TextXAlignment.Left
+diagLabel.TextYAlignment = Enum.TextYAlignment.Top
+diagLabel.Text = "DIAG: starting..."
+diagLabel.Parent = screen
+
+local function roundPos(p)
+	return "(" .. math.floor(p.X + 0.5) .. ", " .. math.floor(p.Y + 0.5) .. ", " .. math.floor(p.Z + 0.5) .. ")"
+end
+
+local function partLine(name)
+	local part = Workspace:FindFirstChild(name)
+	if not part then
+		return name .. ": MISSING"
+	end
+	return name .. ": YES " .. roundPos(part.Position)
+end
+
+local function countBrainrotsSeen()
+	local n = 0
+	for _, child in ipairs(Workspace:GetChildren()) do
+		if child.ClassName == "Model" and child.Name ~= "Sneaky Snatcher" then
+			local body = child:FindFirstChild("Body")
+			if body and body:FindFirstChild("NameTag") then
+				n += 1
+			end
+		end
+	end
+	return n
+end
+
+local function refreshDiag()
+	local lines = { "DIAG (what your screen sees)" }
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root then
+		local p = root.Position
+		lines[#lines + 1] = "you: " .. roundPos(p)
+		lines[#lines + 1] = "dist to lane: " .. math.floor(math.abs(p.Z - LANE_Z) + 0.5)
+	else
+		lines[#lines + 1] = "you: no character"
+		lines[#lines + 1] = "dist to lane: ?"
+	end
+	lines[#lines + 1] = partLine("PlazaFloor")
+	lines[#lines + 1] = partLine("ConveyorLane")
+	lines[#lines + 1] = partLine("SpawnLocation")
+	lines[#lines + 1] = "brainrots seen: " .. countBrainrotsSeen()
+	diagLabel.Text = table.concat(lines, "\n")
+end
+
+refreshDiag()
+local diagTimer = 0
+RunService.Heartbeat:Connect(function(dt)
+	diagTimer += dt
+	if diagTimer >= 1 then
+		diagTimer = 0
+		refreshDiag()
+	end
+end)
 
 playButton.MouseButton1Click:Connect(function()
 	startFrame.Visible = false
